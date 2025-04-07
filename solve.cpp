@@ -36,20 +36,64 @@ using namespace std;
 pair<int, int> findEntrance(const vector<string>& grid) {
     int rows = grid.size();
     int cols = grid[0].size();
-
+    // how do i assure that entry wont get picked twice?
+    //change  entrance found to  an 'o' so it oesnt get picked again?
     // Check top and bottom rows
     for (int c = 0; c < cols; ++c) {
-        if (grid[0][c] == ' ') return {0, c};
-        if (grid[rows - 1][c] == ' ') return {rows - 1, c};
+        if (grid[0][c] == ' '){
+            return {0, c};
+            grid[0][c] = 'o'
+        } 
+        if (grid[rows - 1][c] == ' '){
+            return {rows - 1, c};
+            grid[rows - 1][c] = 'o'
+        } 
     }
 
     // Check left and right columns
     for (int r = 0; r < rows; ++r) {
-        if (grid[r][0] == ' ') return {r, 0};
-        if (grid[r][cols - 1] == ' ') return {r, cols - 1};
+        if (grid[r][0] == ' '){
+            return {r, 0};
+            grid[r][0] = 'o'
+        } 
+        if (grid[r][cols - 1] == ' ')
+            return {r, cols - 1};
+            grid[r][cols - 1] = 'o'
+
     }
 }
 
+
+pair<int, int> findExit(const vector<string>& grid) {
+    int rows = grid.size();
+    int cols = grid[0].size();
+    // how do i assure that entry wont get picked twice?
+    //change  entrance found to  an 'o' so it oesnt get picked again?
+    // Check top and bottom rows
+    //idk if to swap exit node wit 'E' or 'o' as to indicate exit reached.
+    for (int c = 0; c < cols; ++c) {
+        if (grid[0][c] == ' '){
+            return {0, c};
+            grid[0][c] = 'E'
+        } 
+        if (grid[rows - 1][c] == ' '){
+            return {rows - 1, c};
+            grid[rows - 1][c] = 'E'
+        } 
+    }
+
+    // Check left and right columns
+    for (int r = 0; r < rows; ++r) {
+        if (grid[r][0] == ' '){
+            return {r, 0};
+            grid[r][0] = 'E'
+        } 
+        if (grid[r][cols - 1] == ' ')
+            return {r, cols - 1};
+            grid[r][cols - 1] = 'E'
+
+    }
+}
 
 
 
@@ -95,12 +139,19 @@ string solve(string maze){
     //
     bool pathFound = False
     while True:
-        exploreNeighbors(maze)
-        if string found exit found
+        findExit(maze)
+        if grid[r][c] = 'E'
             break
     
     //flip shortest path cells to 'o' on the string grid and return the string back as solution
-    grid[r][c] == 
+    //flip all the shortest path to 'o'
+    //so do we need to make visieted or was that made in neighbords?
+    // so we need to walk down the shortest path and flip ' ' to 'o'
+    
+
+    //okay idk when to make the parents to eahc node
+    // is it //node now to next node then node to 0?
+    // 
     
 
     
