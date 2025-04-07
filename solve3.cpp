@@ -1,214 +1,166 @@
+#include "solve.h"
+#include "vertex.h" 
 #include <vector>
 #include <string>
-#include <unordered_set>
-#include <queue>
 #include <unordered_map>
-#include <utility> // For std::pair, std::make_pair
+#include <queue>
+#include <unordered_set>
 
 using namespace std;
 
-// findEntrance and findExit remain the same as in your original code.
-
-// Finds the first open space (' ') on the border of the grid,
-// returning its (row, col) coordinates.
-pair<int, int> findEntrance(const vector<string>& grid) {
-    int rows = grid.size();
-    int cols = grid[0].size();
-
-    // Check top and bottom rows.
-    for (int c = 0; c < cols; ++c) {
-        if (grid[0][c] == ' ')
-            return {0, c};
-        if (rows > 1 && grid[rows - 1][c] == ' ') // Add rows > 1 check for safety
-            return {rows - 1, c};
-    }
-
-    // Check left and right columns.
-    for (int r = 1; r < rows - 1; ++r) { // Avoid checking corners twice
-        if (grid[r][0] == ' ')
-            return {r, 0};
-        if (cols > 1 && grid[r][cols - 1] == ' ') // Add cols > 1 check
-            return {r, cols - 1};
-    }
-    return {-1, -1}; // Should not happen in valid mazes per problem description
-}
-
-// Finds the exit on the border (an open space) that is not the entrance.
-pair<int, int> findExit(const vector<string>& grid, pair<int, int> entrance) {
-    int rows = grid.size();
-    int cols = grid[0].size();
-
-    // Check top and bottom rows.
-    for (int c = 0; c < cols; ++c) {
-        if (grid[0][c] == ' ' && make_pair(0, c) != entrance)
-            return {0, c};
-        if (rows > 1 && grid[rows - 1][c] == ' ' && make_pair(rows - 1, c) != entrance) // Add rows > 1 check
-            return {rows - 1, c};
-    }
-
-    // Check left and right columns.
-    for (int r = 1; r < rows - 1; ++r) { // Avoid checking corners twice
-        if (grid[r][0] == ' ' && make_pair(r, 0) != entrance)
-            return {r, 0};
-        if (cols > 1 && grid[r][cols - 1] == ' ' && make_pair(r, cols - 1) != entrance) // Add cols > 1 check
-            return {r, cols - 1};
-    }
-    return {-1, -1}; // Should not happen in valid mazes per problem description
-}
-
-
-// Main solve function as declared in solve.h.
-string solve(string maze) {
-    // --- Step 1: Convert maze string to grid (vector of strings) ---
+// Pseudocode:
+// Convert the maze string into a list of row strings.
+// This function splits the maze input (by newline) and returns a vector where each element is a row.
+static vector<string> parseMaze(const string& maze) {
     vector<string> grid;
-    size_t start = 0, pos;
-    while ((pos = maze.find('\n', start)) != string::npos) {
-        string line = maze.substr(start, pos - start);
-         // Optional: Handle '\r\n' if necessary, though examples use '\n'
-         // if (!line.empty() && line.back() == '\r') { line.pop_back(); }
-        grid.push_back(line);
-        start = pos + 1;
+    size_t pos = 0;
+    while (pos < maze.size()) {
+        size_t newline = maze.find('\n', pos);
+        if (newline == string::npos)
+            break;
+        grid.emplace_back(maze.substr(pos, newline - pos));
+        pos = newline + 1;
     }
-    if (start < maze.size()) { // Add the last row if no trailing newline
-        string line = maze.substr(start);
-         // Optional: Handle '\r\n'
-         // if (!line.empty() && line.back() == '\r') { line.pop_back(); }
-        grid.push_back(line);
+    return grid;
+}
+
+// Pseudocode:
+// Find the maze entrance by scanning the outer boundaries for the first open space (' ').
+static pair<int,int> findEntrance(const vector<string>& grid) {
+    int rowCount = grid.size();
+    int colCount = grid[0].size();
+    // Scan top and bottom rows
+    for (int c = 0; c < colCount; ++c) {
+        if (grid[0][c] == ' ') return {0, c};
+        if (grid[rowCount - 1][c] == ' ') return {rowCount - 1, c};
+    }
+    // Scan left and right columns
+    for (int r = 0; r < rowCount; ++r) {
+        if (grid[r][0] == ' ') return {r, 0};
+        if (grid[r][colCount - 1] == ' ') return {r, colCount - 1};
+    }
+    return {-1, -1}; // Should not happen for valid mazes
+}
+
+// Pseudocode:
+// Find the maze exit by scanning the outer boundaries for the second open space,
+// ignoring the entrance.
+static pair<int,int> findExit(const vector<string>& grid, pair<int,int> entrance) {
+    int rowCount = grid.size();
+    int colCount = grid[0].size();
+    // Scan top and bottom rows
+    for (int c = 0; c < colCount; ++c) {
+        if (grid[0][c] == ' ' && !(entrance.first == 0 && entrance.second == c))
+            return {0, c};
+        if (grid[rowCount - 1][c] == ' ' && !(entrance.first == rowCount - 1 && entrance.second == c))
+            return {rowCount - 1, c};
+    }
+    // Scan left and right columns
+    for (int r = 0; r < rowCount; ++r) {
+        if (grid[r][0] == ' ' && !(entrance.first == r && entrance.second == 0))
+            return {r, 0};
+        if (grid[r][colCount - 1] == ' ' && !(entrance.first == r && entrance.second == colCount - 1))
+            return {r, colCount - 1};
+    }
+    return {-1, -1};
+}
+
+// Pseudocode:
+// Solve the maze by converting it into a graph of Vertex objects, using BFS to find the shortest path,
+// then marking that path on the maze and returning the solution as a string.
+string solve(string maze) {
+    // 1. Parse maze into grid
+    vector<string> grid = parseMaze(maze);
+    int rowCount = grid.size();
+    if (rowCount == 0) return maze;
+    int colCount = grid[0].size();
+
+    // 2. Locate entrance and exit positions (as grid coordinates)
+    pair<int,int> entrancePos = findEntrance(grid);
+    pair<int,int> exitPos = findExit(grid, entrancePos);
+
+    // 3. Create a 2D grid of Vertex pointers for empty cells
+    vector<vector<Vertex*>> vertices(rowCount, vector<Vertex*>(colCount, nullptr));
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            if (grid[r][c] == ' ') {
+                vertices[r][c] = new Vertex(r, c);
+            }
+        }
     }
 
-    int rows = grid.size();
-    if (rows == 0) return maze; // Handle empty input
-    int cols = grid[0].size();
-    if (cols == 0) return maze; // Handle empty rows
+    // 4. Build the graph by linking each Vertex to its valid (non-wall) adjacent neighbors
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            if (vertices[r][c] != nullptr) {
+                // Up
+                if (r > 0 && vertices[r - 1][c] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r - 1][c]);
+                // Down
+                if (r < rowCount - 1 && vertices[r + 1][c] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r + 1][c]);
+                // Left
+                if (c > 0 && vertices[r][c - 1] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r][c - 1]);
+                // Right
+                if (c < colCount - 1 && vertices[r][c + 1] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r][c + 1]);
+            }
+        }
+    }
 
-    // --- Step 2: Find the entrance and exit on the maze border ---
-    pair<int, int> entrance = findEntrance(grid);
-    pair<int, int> exitP = findExit(grid, entrance);
+    // 5. Set up BFS to find the shortest path from entrance to exit
+    Vertex* startVertex = vertices[entrancePos.first][entrancePos.second];
+    Vertex* goalVertex  = vertices[exitPos.first][exitPos.second];
+    unordered_map<Vertex*, Vertex*> parent;  // To backtrack the path
+    unordered_set<Vertex*> visited;
+    queue<Vertex*> frontier;
+    visited.insert(startVertex);
+    frontier.push(startVertex);
+    bool found = false;
+    
+    while (!frontier.empty()) {
+        Vertex* current = frontier.front();
+        frontier.pop();
+        if (current == goalVertex) {
+            found = true;
+            break;
+        }
+        for (Vertex* neighbor : current->neighs) {
+            if (visited.find(neighbor) == visited.end()) {
+                visited.insert(neighbor);
+                parent[neighbor] = current;
+                frontier.push(neighbor);
+            }
+        }
+    }
 
-    // Handle cases where entrance or exit isn't found (though problem assumes valid maze)
-    if (entrance.first == -1 || exitP.first == -1) {
+    // If no path is found, cleanup and return the original maze
+    if (!found) {
+        for (auto &row : vertices)
+            for (auto &v : row)
+                delete v;
         return maze;
     }
-     // Handle trivial case where entrance is the exit (e.g., single space maze " ")
-     if (entrance == exitP) {
-        // Decide behavior: return as-is or mark the single cell?
-        // Assuming return as-is if they are the same and no path needed.
-        // If the single cell should be marked 'o', uncomment below:
-        // grid[entrance.first][entrance.second] = 'o';
-        // // Reassemble and return grid (or just return maze)
-     }
 
-
-    // --- Step 3: BFS to find the shortest path ---
-    queue< pair<int, int> > q;
-    unordered_map<int, int> parent;
-    unordered_set<int> visited;
-
-    auto encode = [cols](int r, int c) -> int {
-        return r * cols + c;
-    };
-
-    q.push(entrance);
-    visited.insert(encode(entrance.first, entrance.second));
-    // No parent for the entrance itself
-
-    int dr[4] = {-1, 1, 0, 0};
-    int dc[4] = {0, 0, -1, 1};
-    bool found = false;
-
-    while (!q.empty()) {
-        pair<int, int> cur = q.front();
-        q.pop();
-        int r = cur.first;
-        int c = cur.second;
-
-        // Check if we FOUND the exit in the *previous* iteration's neighbor check.
-        // Note: We don't check cur == exitP here anymore, we check neighbors.
-
-        // Explore 4-directional neighbors.
-        for (int i = 0; i < 4; i++) {
-            int rr = r + dr[i];
-            int cc = c + dc[i];
-
-            // Boundary check
-            if (rr < 0 || cc < 0 || rr >= rows || cc >= cols)
-                continue;
-
-            // Wall check
-            if (grid[rr][cc] != ' ')
-                continue;
-
-            int enc = encode(rr, cc);
-
-            // Visited check
-            if (visited.count(enc))
-                continue;
-
-            // Valid, unvisited neighbor found
-            visited.insert(enc);
-            parent[enc] = encode(r, c); // *** Record parent HERE ***
-
-            // *** Check if this neighbor IS the exit ***
-            if (make_pair(rr, cc) == exitP) {
-                found = true;
-                break; // Exit the neighbor loop (found the exit)
-            }
-
-            // If not the exit, add to queue
-            q.push({rr, cc});
-        }
-
-        if (found) {
-            break; // Exit the main BFS loop (while !q.empty())
-        }
+    // 6. Backtrack from the exit to the entrance, marking the path with 'o'
+    for (Vertex* cur = goalVertex; ; cur = parent[cur]) {
+        grid[cur->row][cur->col] = 'o';
+        if (cur == startVertex)
+            break;
     }
 
-    // --- Step 4: Backtrack from exit to entrance using the parent map ---
-    if (found) { // Only backtrack if a path was found
-        pair<int, int> cur = exitP;
-        int entranceEnc = encode(entrance.first, entrance.second);
-
-        while (true) {
-            int curEnc = encode(cur.first, cur.second);
-
-            // Don't mark the entrance node itself
-            if (cur == entrance) {
-                break;
-            }
-
-            // Mark the current node (including the exit node on first iteration)
-            grid[cur.first][cur.second] = 'o';
-
-            // Check if we've reached the node whose parent is the entrance,
-            // or if the current node has no parent in the map (should only be the entrance itself)
-            if (parent.find(curEnc) == parent.end()) {
-                 // This should only happen if cur is the entrance, which is handled above.
-                 // Or if entrance == exit initially.
-                 break;
-            }
-
-            int parEnc = parent[curEnc];
-
-            // If the parent is the entrance, we just marked the node adjacent to it. Stop.
-            if (parEnc == entranceEnc) {
-                break;
-            }
-
-            // Move to the parent for the next iteration
-            cur = { parEnc / cols, parEnc % cols };
+    // 7. Cleanup dynamically allocated Vertex objects
+    for (auto &row : vertices) {
+        for (auto &v : row) {
+            delete v;
         }
-    } else {
-         // If no path found, return the original maze (as per original logic)
-         return maze;
     }
-
-    // --- Step 5: Reassemble the grid back into a string ---
-    string result = "";
-    for (int i = 0; i < rows; i++) {
-        result += grid[i];
-        if (i < rows - 1)
-            result += '\n';
+    
+    // 8. Rebuild the solution string from the modified grid
+    string solution;
+    for (const auto& rowStr : grid) {
+        solution += rowStr + "\n";
     }
-
-    return result;
+    return solution;
 }

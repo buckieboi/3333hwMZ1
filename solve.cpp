@@ -1,160 +1,166 @@
+#include "solve.h"
+#include "vertex.h" 
 #include <vector>
 #include <string>
-#include <unordered_set>
-#include <queue>
 #include <unordered_map>
+#include <queue>
+#include <unordered_set>
 
 using namespace std;
 
-// For the mandatory running time, assume that the time for
-// operations of queue, unordered_set, and map are O(1). 
-// (They are for average-case, but not worst-case).
-//
-// For the mandatory running time below, s is the length of 
-// the input string representing the maze.
-// 
-// For a complete description of the maze string 
-// and maze solution formats, see the assignment pdf.
+// Pseudocode:
+// Convert the maze string into a list of row strings.
+// This function splits the maze input (by newline) and returns a vector where each element is a row.
+static vector<string> parseMaze(const string& maze) {
+    vector<string> grid;
+    size_t pos = 0;
+    while (pos < maze.size()) {
+        size_t newline = maze.find('\n', pos);
+        if (newline == string::npos)
+            break;
+        grid.emplace_back(maze.substr(pos, newline - pos));
+        pos = newline + 1;
+    }
+    return grid;
+}
 
+// Pseudocode:
+// Find the maze entrance by scanning the outer boundaries for the first open space (' ').
+static pair<int,int> findEntrance(const vector<string>& grid) {
+    int rowCount = grid.size();
+    int colCount = grid[0].size();
+    // Scan top and bottom rows
+    for (int c = 0; c < colCount; ++c) {
+        if (grid[0][c] == ' ') return {0, c};
+        if (grid[rowCount - 1][c] == ' ') return {rowCount - 1, c};
+    }
+    // Scan left and right columns
+    for (int r = 0; r < rowCount; ++r) {
+        if (grid[r][0] == ' ') return {r, 0};
+        if (grid[r][colCount - 1] == ' ') return {r, colCount - 1};
+    }
+    return {-1, -1}; // Should not happen for valid mazes
+}
 
-// Returns a string representing a shortest solution to the maze.
-// Has undefined behavior if the maze is not valid or has no solution.
-//
-// Must run in O(s) time.
-
-
-
-//image it like craph
-//find the entrance
-//move down  every level, pushing in queue and removing from.
-//once exit on the last give string matches, update a boolean value and end search.
-
-
-//loop thru string check for entrance
-//
-
-pair<int, int> findEntrance(const vector<string>& grid) {
-    int rows = grid.size();
-    int cols = grid[0].size();
-    // how do i assure that entry wont get picked twice?
-    //change  entrance found to  an 'o' so it oesnt get picked again?
-    // Check top and bottom rows
-    for (int c = 0; c < cols; ++c) {
-        if (grid[0][c] == ' '){
+// Pseudocode:
+// Find the maze exit by scanning the outer boundaries for the second open space,
+// ignoring the entrance.
+static pair<int,int> findExit(const vector<string>& grid, pair<int,int> entrance) {
+    int rowCount = grid.size();
+    int colCount = grid[0].size();
+    // Scan top and bottom rows
+    for (int c = 0; c < colCount; ++c) {
+        if (grid[0][c] == ' ' && !(entrance.first == 0 && entrance.second == c))
             return {0, c};
-            grid[0][c] = 'o'
-        } 
-        if (grid[rows - 1][c] == ' '){
-            return {rows - 1, c};
-            grid[rows - 1][c] = 'o'
-        } 
+        if (grid[rowCount - 1][c] == ' ' && !(entrance.first == rowCount - 1 && entrance.second == c))
+            return {rowCount - 1, c};
     }
-
-    // Check left and right columns
-    for (int r = 0; r < rows; ++r) {
-        if (grid[r][0] == ' '){
+    // Scan left and right columns
+    for (int r = 0; r < rowCount; ++r) {
+        if (grid[r][0] == ' ' && !(entrance.first == r && entrance.second == 0))
             return {r, 0};
-            grid[r][0] = 'o'
-        } 
-        if (grid[r][cols - 1] == ' ')
-            return {r, cols - 1};
-            grid[r][cols - 1] = 'o'
-
+        if (grid[r][colCount - 1] == ' ' && !(entrance.first == r && entrance.second == colCount - 1))
+            return {r, colCount - 1};
     }
+    return {-1, -1};
 }
 
+// Pseudocode:
+// Solve the maze by converting it into a graph of Vertex objects, using BFS to find the shortest path,
+// then marking that path on the maze and returning the solution as a string.
+string solve(string maze) {
+    // 1. Parse maze into grid
+    vector<string> grid = parseMaze(maze);
+    int rowCount = grid.size();
+    if (rowCount == 0) return maze;
+    int colCount = grid[0].size();
 
-pair<int, int> findExit(const vector<string>& grid) {
-    int rows = grid.size();
-    int cols = grid[0].size();
-    // how do i assure that entry wont get picked twice?
-    //change  entrance found to  an 'o' so it oesnt get picked again?
-    // Check top and bottom rows
-    //idk if to swap exit node wit 'E' or 'o' as to indicate exit reached.
-    for (int c = 0; c < cols; ++c) {
-        if (grid[0][c] == ' '){
-            return {0, c};
-            grid[0][c] = 'E'
-        } 
-        if (grid[rows - 1][c] == ' '){
-            return {rows - 1, c};
-            grid[rows - 1][c] = 'E'
-        } 
+    // 2. Locate entrance and exit positions (as grid coordinates)
+    pair<int,int> entrancePos = findEntrance(grid);
+    pair<int,int> exitPos = findExit(grid, entrancePos);
+
+    // 3. Create a 2D grid of Vertex pointers for empty cells
+    vector<vector<Vertex*>> vertices(rowCount, vector<Vertex*>(colCount, nullptr));
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            if (grid[r][c] == ' ') {
+                vertices[r][c] = new Vertex(r, c);
+            }
+        }
     }
 
-    // Check left and right columns
-    for (int r = 0; r < rows; ++r) {
-        if (grid[r][0] == ' '){
-            return {r, 0};
-            grid[r][0] = 'E'
-        } 
-        if (grid[r][cols - 1] == ' ')
-            return {r, cols - 1};
-            grid[r][cols - 1] = 'E'
-
+    // 4. Build the graph by linking each Vertex to its valid (non-wall) adjacent neighbors
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            if (vertices[r][c] != nullptr) {
+                // Up
+                if (r > 0 && vertices[r - 1][c] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r - 1][c]);
+                // Down
+                if (r < rowCount - 1 && vertices[r + 1][c] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r + 1][c]);
+                // Left
+                if (c > 0 && vertices[r][c - 1] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r][c - 1]);
+                // Right
+                if (c < colCount - 1 && vertices[r][c + 1] != nullptr)
+                    vertices[r][c]->neighs.push_back(vertices[r][c + 1]);
+            }
+        }
     }
-}
 
-
-
-
-
-
-//exploreNeighbors()
-void exploreNeighbors(){
-    //make direction row and column vectors as to explore them reach level
-    //north,south,east,west
-    dr=[-1,1,0,0];
-    dc=[0,0,-1,1];
-
-
-    for i < 4 //all directions
-        //traverse the neighboring cells.
-        rr = r + dr[i];
-        cc = c + dc[i];
-        //
-        //skip over # as they are the walls of the maze
-        if rr == "#" or cc == "#" continue;
-        //R and C are length of row and column(dont go beyond maze)
-        if rr >= R or cc >= C; continue;
-        // what if visited?
-        // do i need to make a list that will take all nodes that have been passed?
-        // is that all nodes that have been to queue?
-        if dr == visited or dc == visited continue;
-        //add the neighboring nodes to queue
-        rr.enqueue;
-        cc.enqueue;
-
-
-}
-
-// we have a way to to traverse the nodes
-// we need to now find the smallest path and return it.
-// so like when we are traversing the smallest pasth FIFO of queue will allow the smallest path to return first.
-// so we mark that path and come pack to return it as a string.
-// professor daid use boolean to make it easier and flip when string is found.
-// need to tag exit and user r,c to check if we reached it.
-
-string solve(string maze){
-    //
-    bool pathFound = False
-    while True:
-        findExit(maze)
-        if grid[r][c] = 'E'
-            break
+    // 5. Set up BFS to find the shortest path from entrance to exit
+    Vertex* startVertex = vertices[entrancePos.first][entrancePos.second];
+    Vertex* goalVertex  = vertices[exitPos.first][exitPos.second];
+    unordered_map<Vertex*, Vertex*> parent;  // To backtrack the path
+    unordered_set<Vertex*> visited;
+    queue<Vertex*> frontier;
+    visited.insert(startVertex);
+    frontier.push(startVertex);
+    bool found = false;
     
-    //flip shortest path cells to 'o' on the string grid and return the string back as solution
-    //flip all the shortest path to 'o'
-    //so do we need to make visieted or was that made in neighbords?
-    // so we need to walk down the shortest path and flip ' ' to 'o'
-    
+    while (!frontier.empty()) {
+        Vertex* current = frontier.front();
+        frontier.pop();
+        if (current == goalVertex) {
+            found = true;
+            break;
+        }
+        for (Vertex* neighbor : current->neighs) {
+            if (visited.find(neighbor) == visited.end()) {
+                visited.insert(neighbor);
+                parent[neighbor] = current;
+                frontier.push(neighbor);
+            }
+        }
+    }
 
-    //okay idk when to make the parents to eahc node
-    // is it //node now to next node then node to 0?
-    // 
-    
+    // If no path is found, cleanup and return the original maze
+    if (!found) {
+        for (auto &row : vertices)
+            for (auto &v : row)
+                delete v;
+        return maze;
+    }
 
-    
+    // 6. Backtrack from the exit to the entrance, marking the path with 'o'
+    for (Vertex* cur = goalVertex; ; cur = parent[cur]) {
+        grid[cur->row][cur->col] = 'o';
+        if (cur == startVertex)
+            break;
+    }
 
+    // 7. Cleanup dynamically allocated Vertex objects
+    for (auto &row : vertices) {
+        for (auto &v : row) {
+            delete v;
+        }
+    }
     
+    // 8. Rebuild the solution string from the modified grid
+    string solution;
+    for (const auto& rowStr : grid) {
+        solution += rowStr + "\n";
+    }
+    return solution;
 }
